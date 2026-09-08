@@ -11,3 +11,15 @@ body {
 .hover\:shadow-md {
   transition: box-shadow 0.2s ease-in-out;
 }
+/* Móvil: evita zoom automático de iOS y mejora tacto */
+@media (max-width: 640px) {
+  input, select, textarea, button {
+    font-size: 16px;
+  }
+  table {
+    font-size: 13px;
+  }
+  .p-3 {
+    padding: 0.5rem;
+  }
+}

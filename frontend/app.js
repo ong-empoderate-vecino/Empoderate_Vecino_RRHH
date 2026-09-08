@@ -51,6 +51,7 @@ function app() {
     filterSearch: '',
     attFilter: { commission_id: '', from: '', to: '' },
     attendanceData: [],
+    membershipHistory: [],
 
     signerName: 'Heydi Alanya Camasca',
     signerRole: 'Coordinadora de RRHH y Legal',
@@ -140,10 +141,16 @@ function app() {
       this.ready = true;
       if (!sb) return;
       try {
-        if (window.location.hash.includes('type=recovery')) {
+
+        const hash = window.location.hash;
+        if (hash.includes('type=recovery')) {
           this.showReset = true;
           history.replaceState(null, '', window.location.pathname + window.location.search);
+        } else if (hash.includes('error=')) {
+          history.replaceState(null, '', window.location.pathname + window.location.search);
+          this.errorMsg = '⚠️ El enlace de recuperación expiró o ya fue utilizado. Solicita uno nuevo desde "¿Olvidaste tu contraseña?" y usa solo el ÚLTIMO correo recibido.';
         }
+
         const { data } = await sb.auth.getSession();
         if (data.session && !this.showReset) {
           this.session = data.session;
@@ -351,17 +358,28 @@ function app() {
         updated_at: new Date().toISOString()
       }).eq('id', v.id);
       if (error) { this.notify('Error: ' + error.message, 'err'); return; }
-      this.notify('✅ Baja registrada. El historial se conserva.', 'ok');
+      const { error: eh } = await sb.from('membership_history').insert({
+        person_id: v.id,
+        admission_date: v.admission_date || fecha,
+        departure_date: fecha,
+        departure_reason: motivo,
+        created_by: this.profile.id
+      });
+      if (eh) { this.notify('✅ Baja registrada, pero el historial falló: ' + eh.message, 'err'); }
+      else { this.notify('✅ Baja registrada. El periodo quedó en el historial.', 'ok'); }
       await this.refresh();
     },
 
     async reactivar(v) {
+      const nueva = prompt('Nueva fecha de ingreso del reingreso (AAAA-MM-DD):', this.today);
+      if (!nueva) return;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(nueva)) { this.notify('Fecha inválida. Usa AAAA-MM-DD.', 'err'); return; }
       const { error } = await sb.from('people').update({
-        status: 'activo', departure_date: null, departure_reason: null,
+        status: 'activo', admission_date: nueva, departure_date: null, departure_reason: null,
         updated_at: new Date().toISOString()
       }).eq('id', v.id);
       if (error) { this.notify('Error: ' + error.message, 'err'); return; }
-      this.notify('✅ Persona reactivada.', 'ok');
+      this.notify('✅ Reactivado con nueva fecha de ingreso ' + nueva + '. El periodo anterior queda en el historial.', 'ok');
       await this.refresh();
     },
 
@@ -470,8 +488,15 @@ function app() {
           .eq('commission_id', this.myCommission.commission_id);
         this.subAccounts = sa || [];
       }
+      const { data: mh } = await sb.from('membership_history')
+        .select('*, people(nombres, apellidos)')
+        .order('departure_date', { ascending: false });
+      this.membershipHistory = mh || [];
+
       if (this.view === 'rep') this.$nextTick(() => this.renderChart());
       if (this.view === 'att') this.$nextTick(() => this.loadAttendance());
+
+
     },
 
     async submitHour() {
@@ -561,10 +586,15 @@ function app() {
       const rows = this.filteredVols.map(v => ({
         Nombres: v.nombres, Apellidos: v.apellidos, DNI: v.dni || '',
         Comision: this.commissionName(v.commission_id), Rol: v.internal_role || '',
-        Ciudad: v.city || '', Nacimiento: v.birth_date || '', Telefono: v.phone || '',
-        Correo: v.email || '', Estudios: v.education_level || '', Carrera: v.career || '',
-        Institucion: v.institution || '', Estado: v.status, Ingreso: v.admission_date || '',
-        FechaBaja: v.departure_date || '', MotivoBaja: v.departure_reason || ''
+        Ciudad: v.city || '', FechaNacimiento: v.birth_date || '', Telefono: v.phone || '',
+        Correo: v.email || '', Alergias: v.allergies || '', Seguro: v.insurance || '',
+        ContactoEmergencia: v.emergency_contact || '', Parentesco: v.emergency_relationship || '',
+        TelEmergencia: v.emergency_phone || '', Estudios: v.education_level || '',
+        Carrera: v.career || '', Institucion: v.institution || '', Trabaja: v.works || '',
+        Hobbies: v.hobbies || '', Mascotas: v.pets || '',
+        FechaIngreso: v.admission_date || '', Estado: v.status,
+        FechaBaja: v.departure_date || '', MotivoBaja: v.departure_reason || '',
+        FotoURL: v.photo_url || '', Observaciones: v.notes || ''
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
@@ -573,9 +603,11 @@ function app() {
     },
 
     downloadHoursTemplate() {
-      const ws = XLSX.utils.json_to_sheet([
-        { Correo: 'voluntario@correo.com', Fecha: this.today, Actividad: 'Reunión de comisión', Horas: 2, Descripcion: '' }
-      ]);
+      const rows = this.regVols.map(v => ({
+        Correo: v.email || '', Fecha: '', Actividad: '', Horas: '', Descripcion: ''
+      }));
+      if (!rows.length) rows.push({ Correo: 'voluntario@correo.com', Fecha: '', Actividad: '', Horas: '', Descripcion: '' });
+      const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Plantilla');
       XLSX.writeFile(wb, 'plantilla_horas.xlsx');
@@ -653,6 +685,22 @@ function app() {
       const wb = window.XLSX.utils.book_new();
       window.XLSX.utils.book_append_sheet(wb, ws, 'Horas');
       window.XLSX.writeFile(wb, 'horas_voluntariado.xlsx');
+    },
+
+    exportAttXLS() {
+      if (!window.XLSX) { this.notify('Librería XLS no disponible.', 'err'); return; }
+      const rows = this.attendanceData.map(a => ({
+        Fecha: a.meeting_date,
+        Voluntario: this.fullName(a.people),
+        Comision: this.commissionName(a.commission_id),
+        Actividad: a.activities ? a.activities.name : '',
+        Estado: a.attended ? 'Asistió' : (a.justified ? 'Inasistencia justificada' : 'Inasistencia injustificada'),
+        Justificacion: a.justification || ''
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Asistencia');
+      XLSX.writeFile(wb, 'asistencia.xlsx');
     },
 
     renderChart() {

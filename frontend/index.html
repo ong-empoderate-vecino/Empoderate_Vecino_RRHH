@@ -143,7 +143,7 @@
         <!-- ============ PANEL RRHH ============ -->
         <template x-if="myRole === 'rrhh'">
           <div>
-            <div class="flex flex-wrap gap-2 mb-4">
+            <div class="flex gap-2 mb-4 overflow-x-auto pb-1 md:flex-wrap">
               <button @click="view='vol'; pageVol=1" :class="view==='vol' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Personas</button>
               <button @click="view='bajas'; pageVol=1" :class="view==='bajas' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Bajas</button>
               <button @click="view='reg'" :class="view==='reg' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Registrar horas</button>
@@ -284,6 +284,26 @@
                   </tbody>
                 </table>
               </div>
+
+              <h2 class="font-bold text-slate-700 mb-3 mt-6">Historial de periodos cerrados (bajas y reingresos)</h2>
+              <div class="bg-white rounded-lg shadow overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-slate-50 text-left text-slate-600">
+                    <tr><th class="p-3">Voluntario</th><th class="p-3">Ingreso del periodo</th><th class="p-3">Fecha baja</th><th class="p-3">Motivo</th></tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="m in membershipHistory" :key="m.id">
+                      <tr class="border-t">
+                        <td class="p-3" x-text="fullName(m.people)"></td>
+                        <td class="p-3" x-text="m.admission_date"></td>
+                        <td class="p-3" x-text="m.departure_date"></td>
+                        <td class="p-3" x-text="m.departure_reason || ''"></td>
+                      </tr>
+                    </template>
+                    <tr x-show="membershipHistory.length === 0"><td colspan="4" class="p-6 text-center text-slate-400">Sin periodos cerrados aún.</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <!-- REGISTRAR HORAS + ASISTENCIA (RRHH) -->
@@ -409,6 +429,7 @@
                   <p>Asistencias: <strong class="text-green-600" x-text="attendanceData.filter(a=>a.attended).length"></strong></p>
                   <p>Inasistencias: <strong class="text-red-600" x-text="attendanceData.filter(a=>!a.attended).length"></strong></p>
                   <p>Inasistencias justificadas: <strong class="text-amber-600" x-text="attendanceData.filter(a=>!a.attended && a.justified).length"></strong></p>
+                  <button @click="exportAttXLS()" class="mt-3 w-full bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">📥 Exportar XLS</button>
                 </div>
               </div>
 
@@ -472,7 +493,7 @@
         <!-- ============ PANEL COORDINADOR / SUB ============ -->
         <template x-if="isCoordView">
           <div>
-            <div class="flex flex-wrap gap-2 mb-4">
+            <div class="flex gap-2 mb-4 overflow-x-auto pb-1 md:flex-wrap">
               <button @click="view='vol'" :class="view==='vol' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Mis voluntarios</button>
               <button @click="view='reg'" :class="view==='reg' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Registrar horas</button>
               <button x-show="isCoordinator" @click="view='auth'" :class="view==='auth' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Autorizar subs</button>
@@ -585,6 +606,7 @@
                   <p>Total: <strong x-text="attendanceData.length"></strong></p>
                   <p>Asistencias: <strong class="text-green-600" x-text="attendanceData.filter(a=>a.attended).length"></strong></p>
                   <p>Inasistencias: <strong class="text-red-600" x-text="attendanceData.filter(a=>!a.attended).length"></strong></p>
+                  <button @click="exportAttXLS()" class="mt-3 w-full bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">📥 Exportar XLS</button>
                 </div>
               </div>
               <div class="bg-white rounded-lg shadow overflow-x-auto">
@@ -614,8 +636,18 @@
             <!-- REPORTE COORDINADOR -->
             <div x-show="view==='rep'">
               <div class="flex justify-between items-center mb-3">
+               
                 <h2 class="font-bold text-slate-700">Total: <span x-text="totalHours(hours)"></span> h</h2>
-                <button @click="exportXLS" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">Exportar XLS</button>
+                <div class="flex flex-wrap gap-2">
+                  <label class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm cursor-pointer hover:bg-green-700">
+                    📤 Importar XLS
+                    <input type="file" accept=".xlsx,.xls" @change="importHoursFile($event.target.files[0]); $event.target.value=''" class="hidden" />
+                  </label>
+                  <button @click="downloadHoursTemplate()" class="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm">📋 Plantilla</button>
+                  <button @click="exportXLS" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">📥 Exportar XLS</button>
+                </div>
+
+
               </div>
               <div class="relative bg-white rounded-lg shadow p-4 mb-4" style="height:320px"><canvas id="chartHours"></canvas></div>
               <div class="bg-white rounded-lg shadow overflow-x-auto">
@@ -660,7 +692,7 @@
         <!-- ============ PANEL DIRECCIÓN ============ -->
         <template x-if="myRole === 'direccion'">
           <div>
-            <div class="flex gap-2 mb-4">
+            <div class="flex gap-2 mb-4 overflow-x-auto pb-1 md:flex-wrap">
               <button @click="view='rep'" :class="view==='rep' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Horas</button>
               <button @click="view='att'; $nextTick(() => loadAttendance())" :class="view==='att' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Asistencia</button>
             </div>
@@ -707,6 +739,7 @@
                   <p>Total: <strong x-text="attendanceData.length"></strong></p>
                   <p>Asistencias: <strong class="text-green-600" x-text="attendanceData.filter(a=>a.attended).length"></strong></p>
                   <p>Inasistencias: <strong class="text-red-600" x-text="attendanceData.filter(a=>!a.attended).length"></strong></p>
+                  <button @click="exportAttXLS()" class="mt-3 w-full bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">📥 Exportar XLS</button>
                 </div>
               </div>
             </div>
