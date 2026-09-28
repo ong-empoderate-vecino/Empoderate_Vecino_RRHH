@@ -156,7 +156,7 @@
             <div x-show="view==='vol'">
               <div class="flex flex-wrap gap-2 justify-end mb-3">
                 <button @click="exportPeopleXLS()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm">📥 Exportar XLS</button>
-                <button @click="newPerson()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm">＋ Nueva persona</button>
+                <button @click="newPerson()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm">＋ Nuevo Miembro</button>
               </div>
 
               <div x-show="showPersonForm" class="bg-white rounded-lg shadow p-4 mb-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
@@ -289,12 +289,13 @@
               <div class="bg-white rounded-lg shadow overflow-x-auto">
                 <table class="min-w-full text-sm">
                   <thead class="bg-slate-50 text-left text-slate-600">
-                    <tr><th class="p-3">Voluntario</th><th class="p-3">Ingreso del periodo</th><th class="p-3">Fecha baja</th><th class="p-3">Motivo</th></tr>
+                    <tr><th class="p-3">Voluntario</th><th class="p-3">Comisión del periodo</th><th class="p-3">Ingreso del periodo</th><th class="p-3">Fecha baja</th><th class="p-3">Motivo</th></tr>
                   </thead>
                   <tbody>
-                    <template x-for="m in membershipHistory" :key="m.id">
+                   <template x-for="m in membershipHistory" :key="m.id">
                       <tr class="border-t">
                         <td class="p-3" x-text="fullName(m.people)"></td>
+                        <td class="p-3" x-text="commissionName(m.commission_id)"></td>
                         <td class="p-3" x-text="m.admission_date"></td>
                         <td class="p-3" x-text="m.departure_date"></td>
                         <td class="p-3" x-text="m.departure_reason || ''"></td>
@@ -350,8 +351,20 @@
 
             <!-- HORAS REGISTRADAS -->
             <div x-show="view==='rep'">
+              <div class="bg-white rounded-lg shadow p-4 mb-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                <div><label class="block font-medium text-slate-700 mb-1">Comisión</label>
+                  <select x-model="hourFilter.commission_id" @change="pageHours = 1; $nextTick(() => renderChart())" class="w-full border border-slate-300 rounded-lg p-2">
+                    <option value="">-- Todas --</option>
+                    <template x-for="c in commissions" :key="c.id"><option :value="c.id" x-text="c.name"></option></template>
+                  </select></div>
+                <div><label class="block font-medium text-slate-700 mb-1">Desde</label>
+                  <input type="date" x-model="hourFilter.from" @change="pageHours = 1; $nextTick(() => renderChart())" class="w-full border border-slate-300 rounded-lg p-2" /></div>
+                <div><label class="block font-medium text-slate-700 mb-1">Hasta</label>
+                  <input type="date" x-model="hourFilter.to" @change="pageHours = 1; $nextTick(() => renderChart())" class="w-full border border-slate-300 rounded-lg p-2" /></div>
+              </div>
+
               <div class="flex justify-between items-center mb-3">
-                <h2 class="font-bold text-slate-700">Total: <span x-text="totalHours(hours)"></span> h</h2>
+                <h2 class="font-bold text-slate-700">Total: <span x-text="totalHours(filteredHours)"></span> h</h2>
                 <div class="flex gap-2">
                   <label class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm cursor-pointer hover:bg-green-700">
                     📤 Importar XLS
@@ -635,9 +648,15 @@
 
             <!-- REPORTE COORDINADOR -->
             <div x-show="view==='rep'">
+              <div class="bg-white rounded-lg shadow p-4 mb-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div><label class="block font-medium text-slate-700 mb-1">Desde</label>
+                  <input type="date" x-model="hourFilter.from" @change="pageHours = 1; $nextTick(() => renderChart())" class="w-full border border-slate-300 rounded-lg p-2" /></div>
+                <div><label class="block font-medium text-slate-700 mb-1">Hasta</label>
+                  <input type="date" x-model="hourFilter.to" @change="pageHours = 1; $nextTick(() => renderChart())" class="w-full border border-slate-300 rounded-lg p-2" /></div>
+              </div>
+
               <div class="flex justify-between items-center mb-3">
-               
-                <h2 class="font-bold text-slate-700">Total: <span x-text="totalHours(hours)"></span> h</h2>
+                <h2 class="font-bold text-slate-700">Total: <span x-text="totalHours(filteredHours)
                 <div class="flex flex-wrap gap-2">
                   <label class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm cursor-pointer hover:bg-green-700">
                     📤 Importar XLS
@@ -696,9 +715,21 @@
               <button @click="view='rep'" :class="view==='rep' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Horas</button>
               <button @click="view='att'; $nextTick(() => loadAttendance())" :class="view==='att' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Asistencia</button>
             </div>
-            <div x-show="view==='rep'">
+             <div x-show="view==='rep'">
+              <div class="bg-white rounded-lg shadow p-4 mb-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                <div><label class="block font-medium text-slate-700 mb-1">Comisión</label>
+                  <select x-model="hourFilter.commission_id" @change="$nextTick(() => renderChart())" class="w-full border border-slate-300 rounded-lg p-2">
+                    <option value="">-- Todas --</option>
+                    <template x-for="c in commissions" :key="c.id"><option :value="c.id" x-text="c.name"></option></template>
+                  </select></div>
+                <div><label class="block font-medium text-slate-700 mb-1">Desde</label>
+                  <input type="date" x-model="hourFilter.from" @change="$nextTick(() => renderChart())" class="w-full border border-slate-300 rounded-lg p-2" /></div>
+                <div><label class="block font-medium text-slate-700 mb-1">Hasta</label>
+                  <input type="date" x-model="hourFilter.to" @change="$nextTick(() => renderChart())" class="w-full border border-slate-300 rounded-lg p-2" /></div>
+              </div>
+
               <div class="flex justify-between items-center mb-3">
-                <h2 class="font-bold text-slate-700">Total ONG: <span x-text="totalHours(hours)"></span> h</h2>
+                <h2 class="font-bold text-slate-700">Total ONG: <span x-text="totalHours(filteredHours)"></span> h</h2>
                 <button @click="exportXLS" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">Exportar XLS</button>
               </div>
               <div class="bg-white rounded-lg shadow overflow-x-auto">

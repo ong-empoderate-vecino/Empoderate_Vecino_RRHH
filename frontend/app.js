@@ -51,6 +51,7 @@ function app() {
     filterSearch: '',
     attFilter: { commission_id: '', from: '', to: '' },
     attendanceData: [],
+    hourFilter: { commission_id: '', from: '', to: '' },
     membershipHistory: [],
 
     signerName: 'Heydi Alanya Camasca',
@@ -97,8 +98,25 @@ function app() {
       }
       return list;
     },
-    get pagedHours() { const s = (this.pageHours - 1) * this.pageSize; return this.hours.slice(s, s + this.pageSize); },
-    get totalPagesHours() { return Math.max(1, Math.ceil(this.hours.length / this.pageSize)); },
+       get filteredHours() {
+      let list = this.hours;
+      if (this.hourFilter.commission_id) {
+        list = list.filter(h => h.commission_id === this.hourFilter.commission_id);
+      }
+      if (this.hourFilter.from) {
+        list = list.filter(h => h.entry_date >= this.hourFilter.from);
+      }
+      if (this.hourFilter.to) {
+        list = list.filter(h => h.entry_date <= this.hourFilter.to);
+      }
+      return list;
+    },
+    get pagedHours() { 
+      const filtered = this.filteredHours;
+      const s = (this.pageHours - 1) * this.pageSize; 
+      return filtered.slice(s, s + this.pageSize); 
+    },
+    get totalPagesHours() { return Math.max(1, Math.ceil(this.filteredHours.length / this.pageSize)); },
     get certPeople() {
       if (!this.certForm.commission_id) return this.volunteers;
       return this.volunteers.filter(v => v.commission_id === this.certForm.commission_id);
@@ -363,6 +381,7 @@ function app() {
         admission_date: v.admission_date || fecha,
         departure_date: fecha,
         departure_reason: motivo,
+        commission_id: v.commission_id,
         created_by: this.profile.id
       });
       if (eh) { this.notify('✅ Baja registrada, pero el historial falló: ' + eh.message, 'err'); }
@@ -712,7 +731,7 @@ function app() {
       
       const act = {};
       const monthsSet = new Set();
-      this.hours.filter(h => h.status === 'activo').forEach(h => {
+      this.filteredHours.filter(h => h.status === 'activo').forEach(h => {
         const m = h.entry_date.slice(0, 7);
         monthsSet.add(m);
         const a = h.activities ? h.activities.name : 'Otro';
