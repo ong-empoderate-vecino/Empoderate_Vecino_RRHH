@@ -564,7 +564,7 @@
                   <tr><th class="p-3">Foto</th><th class="p-3">Voluntario</th><th class="p-3">Rol</th><th class="p-3">Estado</th><th class="p-3">Contacto</th></tr>
                 </thead>
                 <tbody>
-                  <template x-for="v in volunteers" :key="v.id">
+                  <template x-for="v in activeVols" :key="v.id">
                     <tr class="border-t">
                       <td class="p-3"><img x-show="v.photo_url" :src="v.photo_url" class="h-8 w-8 rounded-full object-cover" /><span x-show="!v.photo_url" class="text-slate-300">👤</span></td>
                       <td class="p-3" x-text="fullName(v)"></td>
