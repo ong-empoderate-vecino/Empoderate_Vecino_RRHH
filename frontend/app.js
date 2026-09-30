@@ -10,9 +10,11 @@ let sb = null;
 let configError = '';
 
 // Instancias de gráficos FUERA del estado reactivo de Alpine
-// (si se guardan dentro, el proxy reactivo rompe el render de Chart.js)
 let chartHoursInstance = null;
 let chartAttInstance = null;
+
+// URL pública de la imagen de firma (Storage). Vacío = no mostrar firma aún.
+const SIGNER_PHOTO_URL = '';
 
 // DEBUG: logs en consola para diagnosticar
 const DEBUG = true;
@@ -43,7 +45,7 @@ function app() {
     notice: '', noticeType: 'ok',
     today: new Date().toISOString().slice(0, 10),
     fullForm: false,
-    personForm: { id: null, nombres: '', apellidos: '', dni: '', commission_id: '', internal_role: '', city: '', birth_date: '', phone: '', email: '', career: '', institution: '', education_level: '', works: '', allergies: '', insurance: '', emergency_contact: '', emergency_relationship: '', emergency_phone: '', hobbies: '', pets: '', admission_date: '', notes: '', photo_url: '' },
+    personForm: { id: null, nombres: '', apellidos: '', dni: '', commission_id: '', internal_role: '', city: '', birth_date: '', phone: '', email: '', career: '', institution: '', education_level: '', works: '', allergies: '', insurance: '', emergency_contact: '', emergency_relationship: '', emergency_phone: '', hobbies: '', pets: '', admission_date: '', notes: '', photo_url: '', department_id: null, province_id: null, district_id: null, city_foreign: '', is_foreign: false },
     certForm: { commission_id: '', person_id: '', start_date: '', end_date: '' },
     certPreview: null,
     pageVol: 1, pageHours: 1, pageSize: 15,
@@ -52,7 +54,13 @@ function app() {
     attFilter: { commission_id: '', from: '', to: '' },
     attendanceData: [],
     hourFilter: { commission_id: '', from: '', to: '' },
+    chartMode: 'comision',
     membershipHistory: [],
+
+    // Ubigeo
+    ubigeoDepartamentos: [],
+    ubigeoProvincias: [],
+    ubigeoDistritos: [],
 
     signerName: 'Heydi Alanya Camasca',
     signerRole: 'Coordinadora de RRHH y Legal',
@@ -84,7 +92,7 @@ function app() {
       return Math.max(1, Math.ceil(this.filteredVols.length / this.pageSize));
     },
     get filteredVols() {
-      let list = this.volunteers;
+      let list = this.volunteers.filter(v => v.status !== 'eliminado');
       if (this.filterCommission) {
         list = list.filter(v => v.commission_id === this.filterCommission);
       }
@@ -98,7 +106,7 @@ function app() {
       }
       return list;
     },
-       get filteredHours() {
+    get filteredHours() {
       let list = this.hours;
       if (this.hourFilter.commission_id) {
         list = list.filter(h => h.commission_id === this.hourFilter.commission_id);
@@ -118,8 +126,9 @@ function app() {
     },
     get totalPagesHours() { return Math.max(1, Math.ceil(this.filteredHours.length / this.pageSize)); },
     get certPeople() {
-      if (!this.certForm.commission_id) return this.volunteers;
-      return this.volunteers.filter(v => v.commission_id === this.certForm.commission_id);
+      const base = this.volunteers.filter(v => v.status !== 'eliminado');
+      if (!this.certForm.commission_id) return base;
+      return base.filter(v => v.commission_id === this.certForm.commission_id);
     },
     get certHasHours() {
       const f = this.certForm;
@@ -159,7 +168,6 @@ function app() {
       this.ready = true;
       if (!sb) return;
       try {
-
         const hash = window.location.hash;
         if (hash.includes('type=recovery')) {
           this.showReset = true;
@@ -310,13 +318,55 @@ function app() {
       }, 100);
     },
 
-    newPerson() {
-      this.personForm = { id: null, nombres: '', apellidos: '', dni: '', commission_id: '', internal_role: '', city: '', birth_date: '', phone: '', email: '', career: '', institution: '', education_level: '', works: '', allergies: '', insurance: '', emergency_contact: '', emergency_relationship: '', emergency_phone: '', hobbies: '', pets: '', admission_date: this.today, notes: '', photo_url: '' };
-      this.fullForm = false;
-      this.showPersonForm = true;
+    async loadUbigeoDepartamentos() {
+      const { data } = await sb.from('ubigeo').select('departamento').order('departamento');
+      const unique = [...new Set(data.map(u => u.departamento))].sort();
+      this.ubigeoDepartamentos = unique;
     },
 
-    editPerson(v) {
+    async loadUbigeoProvincias(departamento) {
+      if (!departamento) { this.ubigeoProvincias = []; return; }
+      const { data } = await sb.from('ubigeo').select('provincia').eq('departamento', departamento).order('provincia');
+      const unique = [...new Set(data.map(u => u.provincia))].sort();
+      this.ubigeoProvincias = unique;
+    },
+
+    async loadUbigeoDistritos(departamento, provincia) {
+      if (!departamento || !provincia) { this.ubigeoDistritos = []; return; }
+      const { data } = await sb.from('ubigeo')
+        .select('id, distrito')
+        .eq('departamento', departamento)
+        .eq('provincia', provincia)
+        .order('distrito');
+      this.ubigeoDistritos = data || [];
+    },
+
+    async onDepartmentChange() {
+      this.personForm.province_id = null;
+      this.personForm.district_id = null;
+      this.ubigeoProvincias = [];
+      this.ubigeoDistritos = [];
+      const dep = this.ubigeoDepartamentos.find(d => d === this.personForm.department_name);
+      if (dep) await this.loadUbigeoProvincias(dep);
+    },
+
+    async onProvinceChange() {
+      this.personForm.district_id = null;
+      this.ubigeoDistritos = [];
+      const prov = this.ubigeoProvincias.find(p => p === this.personForm.province_name);
+      if (prov && this.personForm.department_name) {
+        await this.loadUbigeoDistritos(this.personForm.department_name, prov);
+      }
+    },
+
+    newPerson() {
+      this.personForm = { id: null, nombres: '', apellidos: '', dni: '', commission_id: '', internal_role: '', city: '', birth_date: '', phone: '', email: '', career: '', institution: '', education_level: '', works: '', allergies: '', insurance: '', emergency_contact: '', emergency_relationship: '', emergency_phone: '', hobbies: '', pets: '', admission_date: this.today, notes: '', photo_url: '', department_id: null, province_id: null, district_id: null, city_foreign: '', is_foreign: false, department_name: '', province_name: '', district_name: '' };
+      this.fullForm = false;
+      this.showPersonForm = true;
+      this.loadUbigeoDepartamentos();
+    },
+
+    async editPerson(v) {
       this.personForm = {
         id: v.id, nombres: v.nombres, apellidos: v.apellidos, dni: v.dni || '',
         commission_id: v.commission_id || '', internal_role: v.internal_role || '',
@@ -326,10 +376,25 @@ function app() {
         allergies: v.allergies || '', insurance: v.insurance || '',
         emergency_contact: v.emergency_contact || '', emergency_relationship: v.emergency_relationship || '',
         emergency_phone: v.emergency_phone || '', hobbies: v.hobbies || '', pets: v.pets || '',
-        admission_date: v.admission_date || '', notes: v.notes || '', photo_url: v.photo_url || ''
+        admission_date: v.admission_date || '', notes: v.notes || '', photo_url: v.photo_url || '',
+        department_id: v.department_id || null, province_id: v.province_id || null, district_id: v.district_id || null,
+        city_foreign: v.city_foreign || '', is_foreign: !!v.city_foreign,
+        department_name: '', province_name: '', district_name: ''
       };
       this.fullForm = true;
       this.showPersonForm = true;
+      await this.loadUbigeoDepartamentos();
+      
+      if (v.district_id) {
+        const { data: dist } = await sb.from('ubigeo').select('departamento, provincia, distrito').eq('id', v.district_id).single();
+        if (dist) {
+          this.personForm.department_name = dist.departamento;
+          this.personForm.province_name = dist.provincia;
+          this.personForm.district_name = dist.distrito;
+          await this.loadUbigeoProvincias(dist.departamento);
+          await this.loadUbigeoDistritos(dist.departamento, dist.provincia);
+        }
+      }
     },
 
     async savePerson() {
@@ -337,6 +402,20 @@ function app() {
       if (!f.nombres.trim() || !f.apellidos.trim()) { this.notify('Nombres y apellidos son obligatorios.', 'err'); return; }
       if (!f.commission_id) { this.notify('Selecciona una comisión.', 'err'); return; }
       if (f.email && !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(f.email)) { this.notify('Correo con formato inválido.', 'err'); return; }
+      
+      let department_id = null, province_id = null, district_id = null, city_foreign = null;
+      if (f.is_foreign) {
+        city_foreign = f.city_foreign || null;
+      } else if (f.district_name) {
+        const { data: dist } = await sb.from('ubigeo')
+          .select('id')
+          .eq('departamento', f.department_name)
+          .eq('provincia', f.province_name)
+          .eq('distrito', f.district_name)
+          .single();
+        if (dist) district_id = dist.id;
+      }
+      
       const payload = {
         nombres: f.nombres.trim(), apellidos: f.apellidos.trim(),
         dni: f.dni.trim() || null, commission_id: f.commission_id,
@@ -351,6 +430,7 @@ function app() {
         pets: f.pets.trim() || null, admission_date: f.admission_date || null,
         notes: f.notes || null, updated_at: new Date().toISOString(),
         photo_url: f.photo_url || null,
+        department_id: null, province_id: null, district_id: district_id, city_foreign: city_foreign
       };
       let error = null;
       if (f.id) {
@@ -402,6 +482,16 @@ function app() {
       await this.refresh();
     },
 
+    async softDeletePerson(v) {
+      if (!confirm('¿Eliminar a ' + this.fullName(v) + ' de las listas? Sus registros históricos (horas, asistencias) se conservan para auditoría.')) return;
+      const { error } = await sb.from('people').update({
+        status: 'eliminado', updated_at: new Date().toISOString()
+      }).eq('id', v.id);
+      if (error) { this.notify('Error: ' + error.message, 'err'); return; }
+      this.notify('✅ Miembro marcado como eliminado (no aparece en listas, historial intacto).', 'ok');
+      await this.refresh();
+    },
+
     certName(p) { return p ? (p.nombres + ' ' + p.apellidos) : ''; },
 
     onCertPerson() {
@@ -427,7 +517,10 @@ function app() {
         '<p style="text-align:justify;line-height:1.7;">Se expide la presente constancia a solicitud del interesado, a los ' + String(d.getDate()).padStart(2, '0') + ' días del mes de ' + meses[d.getMonth()] + ' de ' + d.getFullYear() + '.</p>' +
         '<p style="text-align:justify;line-height:1.7;">Para cualquier confirmación o ampliación de información, por favor comuníquese al correo electrónico empoderatevecino@gmail.com.</p>' +
         '<p style="margin-top:32px;">Atentamente,</p>' +
-        '<div style="margin-top:56px;border-top:1px solid #334155;width:300px;text-align:center;padding-top:8px;"><strong>' + this.signerName + '</strong><br/>' + this.signerRole + '<br/>EMPODÉRATE VECINO</div>' +
+        '<div style="margin-top:56px;width:300px;text-align:center;">' +
+          (SIGNER_PHOTO_URL ? '<img src="' + SIGNER_PHOTO_URL + '" style="height:60px;margin:0 auto 4px;" onerror="this.style.display=\'none\'"/>' : '') +
+          '<div style="border-top:1px solid #334155;padding-top:8px;"><strong>' + this.signerName + '</strong><br/>' + this.signerRole + '<br/>EMPODÉRATE VECINO</div>' +
+        '</div>' +
         '<div style="margin-top:56px;border-top:1px solid #cbd5e1;padding-top:12px;text-align:center;font-size:12px;color:#475569;">@ong.empoderatevecino · 📧 empoderatevecino@gmail.com · 🌐 www.empoderatevecino.com<br/>Potenciando comunidades para una transformación social duradera.</div>' +
         '</div>';
     },
@@ -514,8 +607,6 @@ function app() {
 
       if (this.view === 'rep') this.$nextTick(() => this.renderChart());
       if (this.view === 'att') this.$nextTick(() => this.loadAttendance());
-
-
     },
 
     async submitHour() {
@@ -528,7 +619,6 @@ function app() {
 
       if (f.attended === 'si') {
         if (!f.activity_id || !f.hours) { this.notify('Completa actividad y horas.', 'err'); return; }
-        // Anti-duplicado: misma fecha + actividad + voluntario
         const dup = this.hours.find(h => h.volunteer_id === v.id && h.entry_date === f.entry_date && h.activity_id === f.activity_id && h.status === 'activo');
         if (dup && !confirm('Ya existe un registro activo de ' + this.fullName(v) + ' en esa fecha y actividad. ¿Registrar de todos modos?')) return;
 
@@ -605,7 +695,8 @@ function app() {
       const rows = this.filteredVols.map(v => ({
         Nombres: v.nombres, Apellidos: v.apellidos, DNI: v.dni || '',
         Comision: this.commissionName(v.commission_id), Rol: v.internal_role || '',
-        Ciudad: v.city || '', FechaNacimiento: v.birth_date || '', Telefono: v.phone || '',
+        Departamento: v.department_id ? 'Sí' : '', Provincia: v.province_id ? 'Sí' : '', Distrito: v.district_id ? 'Sí' : '',
+        CiudadExtranjera: v.city_foreign || '', FechaNacimiento: v.birth_date || '', Telefono: v.phone || '',
         Correo: v.email || '', Alergias: v.allergies || '', Seguro: v.insurance || '',
         ContactoEmergencia: v.emergency_contact || '', Parentesco: v.emergency_relationship || '',
         TelEmergencia: v.emergency_phone || '', Estudios: v.education_level || '',
@@ -661,6 +752,56 @@ function app() {
         }
         this.notify('Importación: ' + ok + ' OK' + (errs.length ? ', ' + errs.length + ' con error → ' + errs.slice(0, 3).join(' | ') : ''), errs.length ? 'err' : 'ok');
         await this.refresh();
+      } catch (e) {
+        this.notify('Error al leer el archivo: ' + e.message, 'err');
+      }
+    },
+
+    downloadAttTemplate() {
+      const rows = this.regVols.map(v => ({
+        Correo: v.email || '', Fecha: '', Asistio: '', Justificada: '', Motivo: ''
+      }));
+      if (!rows.length) rows.push({ Correo: 'voluntario@correo.com', Fecha: '', Asistio: '', Justificada: '', Motivo: '' });
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Plantilla');
+      XLSX.writeFile(wb, 'plantilla_asistencia.xlsx');
+    },
+
+    async importAttFile(file) {
+      if (!file) return;
+      try {
+        const wb = XLSX.read(await file.arrayBuffer());
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+        let ok = 0; const errs = [];
+        for (let i = 0; i < rows.length; i++) {
+          const r = rows[i];
+          const email = String(r.Correo || '').trim().toLowerCase();
+          const v = this.volunteers.find(x => (x.email || '').toLowerCase() === email);
+          if (!v) { errs.push('Fila ' + (i + 2) + ': correo no encontrado'); continue; }
+          let fecha = r.Fecha;
+          if (typeof fecha === 'number') fecha = new Date(Math.round((fecha - 25569) * 86400000)).toISOString().slice(0, 10);
+          else fecha = String(fecha).slice(0, 10);
+          if (!fecha) { errs.push('Fila ' + (i + 2) + ': fecha inválida'); continue; }
+          const asistio = String(r.Asistio || '').trim().toLowerCase();
+          if (asistio !== 'si' && asistio !== 'no') { errs.push('Fila ' + (i + 2) + ': Asistio debe ser si/no'); continue; }
+          let justified = null, justification = null;
+          if (asistio === 'no') {
+            const just = String(r.Justificada || '').trim().toLowerCase();
+            if (just !== 'si' && just !== 'no') { errs.push('Fila ' + (i + 2) + ': Justificada debe ser si/no'); continue; }
+            justified = (just === 'si');
+            justification = r.Motivo ? String(r.Motivo) : null;
+          }
+          const { error } = await sb.from('attendance').insert({
+            person_id: v.id, commission_id: v.commission_id, activity_id: null,
+            meeting_date: fecha, attended: (asistio === 'si'),
+            justified: justified, justification: justification,
+            registered_by: this.profile.id
+          });
+          if (error) errs.push('Fila ' + (i + 2) + ': ' + error.message); else ok++;
+        }
+        this.notify('Importación asistencia: ' + ok + ' OK' + (errs.length ? ', ' + errs.length + ' con error → ' + errs.slice(0, 3).join(' | ') : ''), errs.length ? 'err' : 'ok');
+        await this.loadAttendance();
       } catch (e) {
         this.notify('Error al leer el archivo: ' + e.message, 'err');
       }
@@ -723,56 +864,43 @@ function app() {
     },
 
     renderChart() {
-      log('renderChart llamado');
       const canvas = document.getElementById('chartHours');
-      log('canvas:', canvas);
-      if (!canvas) { log('ERROR: canvas chartHours no encontrado'); return; }
-      if (!window.Chart) { log('ERROR: Chart.js no cargado'); return; }
-      
-      const act = {};
+      if (!canvas || !window.Chart) return;
+      const activos = this.filteredHours.filter(h => h.status === 'activo');
       const monthsSet = new Set();
-      this.filteredHours.filter(h => h.status === 'activo').forEach(h => {
-        const m = h.entry_date.slice(0, 7);
-        monthsSet.add(m);
-        const a = h.activities ? h.activities.name : 'Otro';
-        if (!act[a]) act[a] = {};
-        act[a][m] = (act[a][m] || 0) + Number(h.hours);
-      });
-      
+      activos.forEach(h => monthsSet.add(h.entry_date.slice(0, 7)));
       const months = Array.from(monthsSet).sort();
       const labels = months.map(m => { const p = m.split('-'); return p[1] + '/' + p[0]; });
-      const colors = ['#2563eb', '#16a34a', '#dc2626', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d'];
-      const datasets = Object.keys(act).map((a, i) => ({
-        label: a,
-        data: months.map(m => act[a][m] || 0),
+      const colors = ['#2563eb', '#16a34a', '#dc2626', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#475569', '#b91c1c'];
+      const grupos = {};
+      activos.forEach(h => {
+        const key = (this.chartMode === 'comision')
+          ? (this.commissionName(h.commission_id) || 'Sin comisión')
+          : (h.activities ? h.activities.name : 'Otro');
+        const m = h.entry_date.slice(0, 7);
+        if (!grupos[key]) grupos[key] = {};
+        grupos[key][m] = (grupos[key][m] || 0) + Number(h.hours);
+      });
+      const datasets = Object.keys(grupos).map((g, i) => ({
+        label: g,
+        data: months.map(m => grupos[g][m] || 0),
         backgroundColor: colors[i % colors.length],
       }));
-      
-      log('Datos del gráfico:', { labels, datasets });
-      
+      const titulo = (this.chartMode === 'comision') ? 'Horas por mes y comisión' : 'Horas por mes y actividad';
       setTimeout(() => {
-        try {
-          if (chartHoursInstance) {
-            log('Destruyendo instancia anterior');
-            chartHoursInstance.destroy();
-          }
-          chartHoursInstance = new window.Chart(canvas.getContext('2d'), {
-            type: 'bar',
-            data: { labels, datasets },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
-              plugins: { legend: { position: 'bottom' } },
-            },
-          });
-          log('Gráfico renderizado exitosamente');
-        } catch (err) {
-          log('ERROR al renderizar gráfico:', err);
-        }
-      }, 100);
+        if (chartHoursInstance) chartHoursInstance.destroy();
+        chartHoursInstance = new window.Chart(canvas.getContext('2d'), {
+          type: 'bar',
+          data: { labels, datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+            plugins: { legend: { position: 'bottom' }, title: { display: true, text: titulo } },
+          },
+        });
+      }, 60);
     },
-
 
     onCertCommission() {
       this.certForm.person_id = '';
@@ -794,12 +922,8 @@ function app() {
     },
 
     renderAttChart() {
-      log('renderAttChart llamado');
       const canvas = document.getElementById('chartAtt');
-      log('canvas:', canvas);
-      if (!canvas) { log('ERROR: canvas chartAtt no encontrado'); return; }
-      if (!window.Chart) { log('ERROR: Chart.js no cargado'); return; }
-      
+      if (!canvas || !window.Chart) return;
       const byCom = {};
       this.attendanceData.forEach(a => {
         const c = this.commissionName(a.commission_id) || 'Sin comisión';
@@ -807,41 +931,29 @@ function app() {
         if (a.attended) byCom[c].asistio++;
         else byCom[c].inasistio++;
       });
-      
       const labels = Object.keys(byCom);
       const colors = ['#16a34a', '#dc2626', '#2563eb', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#475569', '#b91c1c'];
-      
-      log('Datos de asistencia:', byCom);
-      
       setTimeout(() => {
-        try {
-          if (chartAttInstance) {
-            log('Destruyendo instancia anterior');
-            chartAttInstance.destroy();
-          }
-          chartAttInstance = new window.Chart(canvas.getContext('2d'), {
-            type: 'pie',
-            data: {
-              labels: labels,
-              datasets: [{ 
-                data: labels.map(l => byCom[l].asistio + byCom[l].inasistio), 
-                backgroundColor: colors.slice(0, labels.length) 
-              }]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { position: 'bottom' },
-                title: { display: true, text: 'Registros de asistencia por comisión' }
-              }
+        if (chartAttInstance) chartAttInstance.destroy();
+        chartAttInstance = new window.Chart(canvas.getContext('2d'), {
+          type: 'pie',
+          data: {
+            labels: labels,
+            datasets: [{ 
+              data: labels.map(l => byCom[l].asistio + byCom[l].inasistio), 
+              backgroundColor: colors.slice(0, labels.length) 
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom' },
+              title: { display: true, text: 'Registros de asistencia por comisión' }
             }
-          });
-          log('Gráfico de asistencia renderizado exitosamente');
-        } catch (err) {
-          log('ERROR al renderizar gráfico de asistencia:', err);
-        }
-      }, 100);
+          }
+        });
+      }, 60);
     },
   };
 }

@@ -144,12 +144,12 @@
         <template x-if="myRole === 'rrhh'">
           <div>
             <div class="flex gap-2 mb-4 overflow-x-auto pb-1 md:flex-wrap">
-              <button @click="view='vol'; pageVol=1" :class="view==='vol' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Personas</button>
-              <button @click="view='bajas'; pageVol=1" :class="view==='bajas' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Bajas</button>
-              <button @click="view='reg'" :class="view==='reg' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Registrar horas</button>
-              <button @click="view='rep'; pageHours=1; $nextTick(() => renderChart())" :class="view==='rep' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Horas registradas</button>
-              <button @click="view='att'; $nextTick(() => loadAttendance())" :class="view==='att' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Asistencia</button>
-              <button @click="view='cert'" :class="view==='cert' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Constancias</button>
+              <button @click="view='vol'; pageVol=1" :class="view==='vol' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow whitespace-nowrap">Personas</button>
+              <button @click="view='bajas'; pageVol=1" :class="view==='bajas' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow whitespace-nowrap">Bajas</button>
+              <button @click="view='reg'" :class="view==='reg' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow whitespace-nowrap">Registrar horas</button>
+              <button @click="view='rep'; pageHours=1; $nextTick(() => renderChart())" :class="view==='rep' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow whitespace-nowrap">Horas registradas</button>
+              <button @click="view='att'; $nextTick(() => loadAttendance())" :class="view==='att' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow whitespace-nowrap">Asistencia</button>
+              <button @click="view='cert'" :class="view==='cert' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow whitespace-nowrap">Constancias</button>
             </div>
 
             <!-- PERSONAS -->
@@ -180,6 +180,34 @@
                   <input x-model="personForm.career" class="w-full border border-slate-300 rounded-lg p-2" /></div>
                 <div><label class="block font-medium text-slate-700 mb-1">Fecha de ingreso</label>
                   <input type="date" x-model="personForm.admission_date" :max="today" class="w-full border border-slate-300 rounded-lg p-2" /></div>
+
+                <!-- UBIGEO -->
+                <div class="md:col-span-2">
+                  <label class="flex items-center gap-2 mb-2">
+                    <input type="checkbox" x-model="personForm.is_foreign" class="w-4 h-4" />
+                    <span class="font-medium text-slate-700">Reside en el extranjero</span>
+                  </label>
+                </div>
+
+                <div x-show="!personForm.is_foreign"><label class="block font-medium text-slate-700 mb-1">Departamento</label>
+                  <select x-model="personForm.department_name" @change="onDepartmentChange()" class="w-full border border-slate-300 rounded-lg p-2">
+                    <option value="">-- Selecciona --</option>
+                    <template x-for="d in ubigeoDepartamentos" :key="d"><option :value="d" x-text="d"></option></template>
+                  </select></div>
+                <div x-show="!personForm.is_foreign"><label class="block font-medium text-slate-700 mb-1">Provincia</label>
+                  <select x-model="personForm.province_name" @change="onProvinceChange()" class="w-full border border-slate-300 rounded-lg p-2">
+                    <option value="">-- Selecciona --</option>
+                    <template x-for="p in ubigeoProvincias" :key="p"><option :value="p" x-text="p"></option></template>
+                  </select></div>
+                <div x-show="!personForm.is_foreign"><label class="block font-medium text-slate-700 mb-1">Distrito</label>
+                  <select x-model="personForm.district_name" class="w-full border border-slate-300 rounded-lg p-2">
+                    <option value="">-- Selecciona --</option>
+                    <template x-for="d in ubigeoDistritos" :key="d.id"><option :value="d.distrito" x-text="d.distrito"></option></template>
+                  </select></div>
+
+                <div x-show="personForm.is_foreign" class="md:col-span-2"><label class="block font-medium text-slate-700 mb-1">Ciudad / País</label>
+                  <input type="text" x-model="personForm.city_foreign" class="w-full border border-slate-300 rounded-lg p-2" placeholder="Ej: Sevilla, España" /></div>
+
                 <div class="md:col-span-2">
                   <label class="block font-medium text-slate-700 mb-1">Foto</label>
                   <div class="flex items-center gap-3">
@@ -192,7 +220,6 @@
                   <div class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3 border-t pt-3 mt-1">
                     <h4 class="md:col-span-2 font-semibold text-slate-500 text-xs uppercase">Ficha completa</h4>
                     <div><label class="block font-medium text-slate-700 mb-1">DNI</label><input x-model="personForm.dni" class="w-full border border-slate-300 rounded-lg p-2" /></div>
-                    <div><label class="block font-medium text-slate-700 mb-1">Ciudad</label><input x-model="personForm.city" class="w-full border border-slate-300 rounded-lg p-2" /></div>
                     <div><label class="block font-medium text-slate-700 mb-1">Fecha nacimiento</label><input type="date" x-model="personForm.birth_date" class="w-full border border-slate-300 rounded-lg p-2" /></div>
                     <div><label class="block font-medium text-slate-700 mb-1">Nivel de estudios</label><input x-model="personForm.education_level" class="w-full border border-slate-300 rounded-lg p-2" /></div>
                     <div><label class="block font-medium text-slate-700 mb-1">Institución</label><input x-model="personForm.institution" class="w-full border border-slate-300 rounded-lg p-2" /></div>
@@ -277,7 +304,10 @@
                         <td class="p-3" x-text="v.internal_role || ''"></td>
                         <td class="p-3" x-text="v.departure_date || ''"></td>
                         <td class="p-3" x-text="v.departure_reason || ''"></td>
-                        <td class="p-3"><button @click="reactivar(v)" class="text-green-600 text-xs underline">Reactivar</button></td>
+                        <td class="p-3">
+                          <button @click="reactivar(v)" class="text-green-600 text-xs underline mr-2">Reactivar</button>
+                          <button @click="softDeletePerson(v)" class="text-red-600 text-xs underline">Eliminar</button>
+                        </td>
                       </tr>
                     </template>
                     <tr x-show="bajas.length === 0"><td colspan="6" class="p-6 text-center text-slate-400">No hay personas dadas de baja.</td></tr>
@@ -301,7 +331,7 @@
                         <td class="p-3" x-text="m.departure_reason || ''"></td>
                       </tr>
                     </template>
-                    <tr x-show="membershipHistory.length === 0"><td colspan="4" class="p-6 text-center text-slate-400">Sin periodos cerrados aún.</td></tr>
+                    <tr x-show="membershipHistory.length === 0"><td colspan="5" class="p-6 text-center text-slate-400">Sin periodos cerrados aún.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -349,7 +379,7 @@
               </form>
             </div>
 
-            <!-- HORAS REGISTRADAS -->
+            <!-- HORAS REGISTRADAS RRHH -->
             <div x-show="view==='rep'">
               <div class="bg-white rounded-lg shadow p-4 mb-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                 <div><label class="block font-medium text-slate-700 mb-1">Comisión</label>
@@ -365,7 +395,7 @@
 
               <div class="flex justify-between items-center mb-3">
                 <h2 class="font-bold text-slate-700">Total: <span x-text="totalHours(filteredHours)"></span> h</h2>
-                <div class="flex gap-2">
+                <div class="flex flex-wrap gap-2">
                   <label class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm cursor-pointer hover:bg-green-700">
                     📤 Importar XLS
                     <input type="file" accept=".xlsx,.xls" @change="importHoursFile($event.target.files[0]); $event.target.value=''" class="hidden" />
@@ -373,6 +403,15 @@
                   <button @click="downloadHoursTemplate()" class="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm">📋 Plantilla (para importar)</button>
                   <button @click="exportXLS" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">📥 Exportar XLS</button>
                 </div>
+              </div>
+
+              <div class="flex gap-2 mb-2">
+                <button @click="chartMode='comision'; $nextTick(() => renderChart())"
+                  :class="chartMode==='comision' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'"
+                  class="px-3 py-1 rounded-lg text-xs font-medium">Por Comisión</button>
+                <button @click="chartMode='actividad'; $nextTick(() => renderChart())"
+                  :class="chartMode==='actividad' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'"
+                  class="px-3 py-1 rounded-lg text-xs font-medium">Por Actividad</button>
               </div>
               <div class="relative bg-white rounded-lg shadow p-4 mb-4" style="height:320px"><canvas id="chartHours"></canvas></div>
 
@@ -442,7 +481,12 @@
                   <p>Asistencias: <strong class="text-green-600" x-text="attendanceData.filter(a=>a.attended).length"></strong></p>
                   <p>Inasistencias: <strong class="text-red-600" x-text="attendanceData.filter(a=>!a.attended).length"></strong></p>
                   <p>Inasistencias justificadas: <strong class="text-amber-600" x-text="attendanceData.filter(a=>!a.attended && a.justified).length"></strong></p>
-                  <button @click="exportAttXLS()" class="mt-3 w-full bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">📥 Exportar XLS</button>
+                  <label class="mt-3 block bg-green-600 text-white px-4 py-2 rounded-lg text-sm cursor-pointer hover:bg-green-700 text-center">
+                    📤 Importar XLS
+                    <input type="file" accept=".xlsx,.xls" @change="importAttFile($event.target.files[0]); $event.target.value=''" class="hidden" />
+                  </label>
+                  <button @click="downloadAttTemplate()" class="mt-2 w-full bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm">📋 Plantilla</button>
+                  <button @click="exportAttXLS()" class="mt-2 w-full bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">📥 Exportar XLS</button>
                 </div>
               </div>
 
@@ -507,11 +551,11 @@
         <template x-if="isCoordView">
           <div>
             <div class="flex gap-2 mb-4 overflow-x-auto pb-1 md:flex-wrap">
-              <button @click="view='vol'" :class="view==='vol' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Mis voluntarios</button>
-              <button @click="view='reg'" :class="view==='reg' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Registrar horas</button>
-              <button x-show="isCoordinator" @click="view='auth'" :class="view==='auth' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Autorizar subs</button>
-              <button @click="view='att'; $nextTick(() => loadAttendance())" :class="view==='att' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Asistencia</button>
-              <button @click="view='rep'; $nextTick(() => renderChart())" :class="view==='rep' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Reporte</button>
+              <button @click="view='vol'" :class="view==='vol' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow whitespace-nowrap">Mis voluntarios</button>
+              <button @click="view='reg'" :class="view==='reg' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow whitespace-nowrap">Registrar horas</button>
+              <button x-show="isCoordinator" @click="view='auth'" :class="view==='auth' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow whitespace-nowrap">Autorizar subs</button>
+              <button @click="view='att'; $nextTick(() => loadAttendance())" :class="view==='att' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow whitespace-nowrap">Asistencia</button>
+              <button @click="view='rep'; $nextTick(() => renderChart())" :class="view==='rep' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow whitespace-nowrap">Reporte</button>
             </div>
 
             <div x-show="view==='vol'" class="bg-white rounded-lg shadow overflow-x-auto">
@@ -619,7 +663,12 @@
                   <p>Total: <strong x-text="attendanceData.length"></strong></p>
                   <p>Asistencias: <strong class="text-green-600" x-text="attendanceData.filter(a=>a.attended).length"></strong></p>
                   <p>Inasistencias: <strong class="text-red-600" x-text="attendanceData.filter(a=>!a.attended).length"></strong></p>
-                  <button @click="exportAttXLS()" class="mt-3 w-full bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">📥 Exportar XLS</button>
+                  <label class="mt-3 block bg-green-600 text-white px-4 py-2 rounded-lg text-sm cursor-pointer hover:bg-green-700 text-center">
+                    📤 Importar XLS
+                    <input type="file" accept=".xlsx,.xls" @change="importAttFile($event.target.files[0]); $event.target.value=''" class="hidden" />
+                  </label>
+                  <button @click="downloadAttTemplate()" class="mt-2 w-full bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm">📋 Plantilla</button>
+                  <button @click="exportAttXLS()" class="mt-2 w-full bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">📥 Exportar XLS</button>
                 </div>
               </div>
               <div class="bg-white rounded-lg shadow overflow-x-auto">
@@ -656,7 +705,7 @@
               </div>
 
               <div class="flex justify-between items-center mb-3">
-                <h2 class="font-bold text-slate-700">Total: <span x-text="totalHours(filteredHours)
+                <h2 class="font-bold text-slate-700">Total: <span x-text="totalHours(filteredHours)"></span> h</h2>
                 <div class="flex flex-wrap gap-2">
                   <label class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm cursor-pointer hover:bg-green-700">
                     📤 Importar XLS
@@ -665,10 +714,18 @@
                   <button @click="downloadHoursTemplate()" class="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm">📋 Plantilla</button>
                   <button @click="exportXLS" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">📥 Exportar XLS</button>
                 </div>
+              </div>
 
-
+              <div class="flex gap-2 mb-2">
+                <button @click="chartMode='comision'; $nextTick(() => renderChart())"
+                  :class="chartMode==='comision' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'"
+                  class="px-3 py-1 rounded-lg text-xs font-medium">Por Comisión</button>
+                <button @click="chartMode='actividad'; $nextTick(() => renderChart())"
+                  :class="chartMode==='actividad' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'"
+                  class="px-3 py-1 rounded-lg text-xs font-medium">Por Actividad</button>
               </div>
               <div class="relative bg-white rounded-lg shadow p-4 mb-4" style="height:320px"><canvas id="chartHours"></canvas></div>
+
               <div class="bg-white rounded-lg shadow overflow-x-auto">
                 <table class="min-w-full text-sm">
                   <thead class="bg-slate-50 text-left text-slate-600">
@@ -712,8 +769,8 @@
         <template x-if="myRole === 'direccion'">
           <div>
             <div class="flex gap-2 mb-4 overflow-x-auto pb-1 md:flex-wrap">
-              <button @click="view='rep'" :class="view==='rep' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Horas</button>
-              <button @click="view='att'; $nextTick(() => loadAttendance())" :class="view==='att' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow">Asistencia</button>
+              <button @click="view='rep'" :class="view==='rep' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow whitespace-nowrap">Horas</button>
+              <button @click="view='att'; $nextTick(() => loadAttendance())" :class="view==='att' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded-lg text-sm font-medium shadow whitespace-nowrap">Asistencia</button>
             </div>
              <div x-show="view==='rep'">
               <div class="bg-white rounded-lg shadow p-4 mb-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
@@ -732,6 +789,16 @@
                 <h2 class="font-bold text-slate-700">Total ONG: <span x-text="totalHours(filteredHours)"></span> h</h2>
                 <button @click="exportXLS" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">Exportar XLS</button>
               </div>
+              <div class="flex gap-2 mb-2">
+                <button @click="chartMode='comision'; $nextTick(() => renderChart())"
+                  :class="chartMode==='comision' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'"
+                  class="px-3 py-1 rounded-lg text-xs font-medium">Por Comisión</button>
+                <button @click="chartMode='actividad'; $nextTick(() => renderChart())"
+                  :class="chartMode==='actividad' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'"
+                  class="px-3 py-1 rounded-lg text-xs font-medium">Por Actividad</button>
+              </div>
+              <div class="relative bg-white rounded-lg shadow p-4 mb-4" style="height:320px"><canvas id="chartHours"></canvas></div>
+
               <div class="bg-white rounded-lg shadow overflow-x-auto">
                 <table class="min-w-full text-sm">
                   <thead class="bg-slate-50 text-left text-slate-600">
