@@ -319,9 +319,14 @@ function app() {
     },
 
     async loadUbigeoDepartamentos() {
-      const { data } = await sb.from('ubigeo').select('departamento').order('departamento');
-      const unique = [...new Set(data.map(u => u.departamento))].sort();
-      this.ubigeoDepartamentos = unique;
+      const { data, error } = await sb.from('ubigeo').select('departamento').order('departamento');
+      if (error) {
+        console.error('[EV] Error cargando ubigeo:', error);
+        this.notify('Error cargando ubigeo: ' + error.message, 'err');
+        return;
+      }
+      this.ubigeoDepartamentos = [...new Set((data || []).map(u => u.departamento))].sort();
+      log('Departamentos cargados:', this.ubigeoDepartamentos.length);
     },
 
     async loadUbigeoProvincias(departamento) {
@@ -561,6 +566,7 @@ function app() {
       ]);
       this.commissions = c || [];
       this.activities = a || [];
+      await this.loadUbigeoDepartamentos();
 
       const { data: sg } = await sb.from('people')
         .select('nombres, apellidos, internal_role')
