@@ -45,6 +45,7 @@ function app() {
     notice: '', noticeType: 'ok',
     today: new Date().toISOString().slice(0, 10),
     fullForm: false,
+    showPersonForm: false,
     personForm: { id: null, nombres: '', apellidos: '', dni: '', commission_id: '', internal_role: '', city: '', birth_date: '', phone: '', email: '', career: '', institution: '', education_level: '', works: '', allergies: '', insurance: '', emergency_contact: '', emergency_relationship: '', emergency_phone: '', hobbies: '', pets: '', admission_date: '', notes: '', photo_url: '', department_id: null, province_id: null, district_id: null, city_foreign: '', is_foreign: false },
     certForm: { commission_id: '', person_id: '', start_date: '', end_date: '' },
     certPreview: null,
@@ -319,30 +320,23 @@ function app() {
     },
 
     async loadUbigeoDepartamentos() {
-      const { data, error } = await sb.from('ubigeo').select('departamento').order('departamento');
-      if (error) {
-        console.error('[EV] Error cargando ubigeo:', error);
-        this.notify('Error cargando ubigeo: ' + error.message, 'err');
-        return;
-      }
-      this.ubigeoDepartamentos = [...new Set((data || []).map(u => u.departamento))].sort();
+      const { data, error } = await sb.rpc('ubigeo_departamentos');
+      if (error) { console.error('[EV] Error deps:', error); this.notify('Error cargando departamentos: ' + error.message, 'err'); return; }
+      this.ubigeoDepartamentos = data || [];
       log('Departamentos cargados:', this.ubigeoDepartamentos.length);
     },
 
     async loadUbigeoProvincias(departamento) {
       if (!departamento) { this.ubigeoProvincias = []; return; }
-      const { data } = await sb.from('ubigeo').select('provincia').eq('departamento', departamento).order('provincia');
-      const unique = [...new Set(data.map(u => u.provincia))].sort();
-      this.ubigeoProvincias = unique;
+      const { data, error } = await sb.rpc('ubigeo_provincias', { p_dep: departamento });
+      if (error) { console.error('[EV] Error provs:', error); return; }
+      this.ubigeoProvincias = data || [];
     },
 
     async loadUbigeoDistritos(departamento, provincia) {
       if (!departamento || !provincia) { this.ubigeoDistritos = []; return; }
-      const { data } = await sb.from('ubigeo')
-        .select('id, distrito')
-        .eq('departamento', departamento)
-        .eq('provincia', provincia)
-        .order('distrito');
+      const { data, error } = await sb.rpc('ubigeo_distritos', { p_dep: departamento, p_prov: provincia });
+      if (error) { console.error('[EV] Error dists:', error); return; }
       this.ubigeoDistritos = data || [];
     },
 
